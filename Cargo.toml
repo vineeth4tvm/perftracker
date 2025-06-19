@@ -1,0 +1,16 @@
+[package]
+name = "excel-to-sqlite"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-web = "4.4"
+actix-multipart = "0.6"
+tokio = { version = "1.0", features = ["full"] }
+futures-util = "0.3"
+calamine = "0.24"
+rusqlite = { version = "0.30", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3.8"
+env_logger = "0.10"
