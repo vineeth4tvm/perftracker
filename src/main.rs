@@ -424,13 +424,45 @@ fn parse_float(cell: Option<&Data>) -> f64 {
         Some(Data::Float(f)) => *f,
         Some(Data::Int(i)) => *i as f64,
         Some(Data::String(s)) => {
-            let cleaned = s
-                .trim()
-                .replace('%', "")
-                .replace(',', "")
-                .replace('₹', "")
-                .replace("Rs", "");
-            cleaned.parse().unwrap_or(0.0)
+            let mut cleaned_s = s.trim().to_string();
+            // Handle parenthesized negative numbers: (123.45) -> -123.45
+            let is_negative_paren = cleaned_s.starts_with('(') && cleaned_s.ends_with(')');
+
+            if is_negative_paren {
+                cleaned_s = cleaned_s.trim_start_matches('(').trim_end_matches(')').to_string();
+            }
+
+            // Remove common financial symbols and characters
+            // Order matters for "Rs." vs "Rs"
+            cleaned_s = cleaned_s
+                .replace(',', "")    // Remove thousands separators: "1,234" -> "1234"
+                .replace('₹', "")    // Remove Rupee symbol: "₹100" -> "100"
+                .replace("Rs.", "")  // Remove "Rs." prefix: "Rs.100" -> "100"
+                .replace("Rs", "")   // Remove "Rs" prefix: "Rs100" -> "100"
+                .replace('%', "");   // Remove percentage sign: "50%" -> "50"
+            // (Note: if "50%" should be 0.5, this logic would need adjustment,
+            // but current behavior is to treat it as 50.0)
+
+            // If the number was parenthesized and not already negative, make it negative
+            if is_negative_paren && !cleaned_s.starts_with('-') {
+                cleaned_s = format!("-{}", cleaned_s);
+            }
+
+            // Attempt to parse the cleaned string
+            cleaned_s.parse().unwrap_or_else(|_e| {
+                // If parsing fails, it might be due to non-numeric text like "N/A", "-", or empty after cleaning.
+                // Fallback to 0.0 for such cases, similar to original behavior.
+                // More sophisticated error handling or logging could be added here if needed.
+                // For example, logging _e could give insight into what strings are failing to parse.
+                let lower_cleaned_s = cleaned_s.to_lowercase();
+                if lower_cleaned_s == "n/a" || lower_cleaned_s == "-" || lower_cleaned_s.is_empty() || lower_cleaned_s == "na" {
+                    0.0
+                } else {
+                    // If it's not a known non-numeric string but still fails, default to 0.0.
+                    // This maintains the original function's behavior of returning 0.0 on parse failure.
+                    0.0
+                }
+            })
         }
         // Explicitly handle non-numeric types as 0.0. The previous catch-all
         // could convert these to strings and cause parsing errors.
